@@ -30,16 +30,17 @@ class Post(models.Model):
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="posts"
     )
     tags = models.ManyToManyField(Tag, blank=True, related_name="posts")
-    title = models.CharField(max_length=200)
+    title = models.CharField(max_length=200, db_index=True)
     content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.title
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["author", "created_at"]),
+            models.Index(fields=["category", "created_at"]),
+        ]
 
 
 class Comment(models.Model):

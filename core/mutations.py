@@ -1,6 +1,7 @@
 import graphene
 from .models import Post, Category, Tag, Comment, Profile
 from .types import PostType, CategoryType, TagType, CommentType, ProfileType
+from django.core.cache import cache
 
 
 class CreateCategory(graphene.Mutation):
@@ -48,6 +49,7 @@ class CreatePost(graphene.Mutation):
         if tag_ids:
             tags = Tag.objects.filter(pk__in=tag_ids)
             post.tags.set(tags)  # ← ManyToMany uses .set()
+        cache.clear()
 
         return CreatePost(post=post, success=True)
 
@@ -92,6 +94,7 @@ class UpdatePost(graphene.Mutation):
             post.tags.set(tags)
 
         post.save()
+        cache.clear()
         return UpdatePost(post=post, success=True)
 
 
@@ -113,6 +116,7 @@ class DeletePost(graphene.Mutation):
         if post.author != user:
             raise Exception("You can only delete your own posts")
         post.delete()
+        cache.clear()
         return DeletePost(success=True, message="Post deleted successfully")
 
 

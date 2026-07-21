@@ -2,6 +2,7 @@ import graphene
 from .models import Post, Category, Tag, Comment, Profile
 from .types import PostType, CategoryType, TagType, CommentType, ProfileType, UserType
 from django.contrib.auth.models import User
+from django.core.cache import cache
 
 
 class Query(graphene.ObjectType):
@@ -26,27 +27,37 @@ class Query(graphene.ObjectType):
     def resolve_all_posts(
         root, info, search=None, ordering=None, category_id=None, tag=None
     ):
-        posts = Post.objects.all()
+        cache_key = f"posts_{search}_{ordering}_{category_id}_{tag}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        posts = Post.objects.select_related("author", "category").prefetch_related(
+            "tags"
+        )
 
         if search:
             posts = posts.filter(title__icontains=search)
-
         if category_id:
             posts = posts.filter(category__id=category_id)
-
         if tag:
             posts = posts.filter(tags__name__icontains=tag)
-
         if ordering == "oldest":
             posts = posts.order_by("created_at")
         else:
             posts = posts.order_by("-created_at")
 
-        return posts
+        result = list(posts)
+        cache.set(cache_key, result, 300)
+        return result
 
     def resolve_post(root, info, id):
         try:
-            return Post.objects.get(pk=id)
+            return (
+                Post.objects.select_related("author", "category")
+                .prefetch_related("tags")
+                .get(pk=id)
+            )
         except Post.DoesNotExist:
             return None
 
@@ -57,7 +68,11 @@ class Query(graphene.ObjectType):
         return Tag.objects.all()
 
     def resolve_post_comments(root, info, post_id):
-        return Comment.objects.filter(post__id=post_id).order_by("-created_at")
+        return (
+            Comment.objects.select_related("author")
+            .filter(post__id=post_id)
+            .order_by("-created_at")
+        )
 
     def resolve_profile(root, info, username):
         try:
